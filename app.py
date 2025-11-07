@@ -10,19 +10,34 @@ load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'ira_secret_key')
-# Database path (use /tmp on Render to avoid permission issues)
+
+# ✅ Use /tmp on Render to avoid permission issues
 db_path = '/tmp/ira.db' if os.getenv('RENDER') else 'instance/ira.db'
 app.config['DATABASE'] = db_path
 
-# Ensure the directory exists
+# ✅ Ensure directory exists
 os.makedirs(os.path.dirname(db_path), exist_ok=True)
 
+# ✅ Auto-create the DB if missing
+def init_db():
+    conn = sqlite3.connect(app.config['DATABASE'])
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT UNIQUE NOT NULL,
+                    password TEXT NOT NULL
+                );''')
+    conn.commit()
+    conn.close()
+    print(f"✅ Database initialized at {app.config['DATABASE']}")
 
-#app.config['DATABASE'] = 'instance/ira.db'
+# Call this once when the app starts
+init_db()
 
 # Initialize AI models at startup
 emotion_analyzer = None
 dropout_predictor = None
+
 
 # Configure Gemini API
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
