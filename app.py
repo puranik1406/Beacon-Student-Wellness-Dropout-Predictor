@@ -10,7 +10,15 @@ load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'ira_secret_key')
-app.config['DATABASE'] = 'instance/ira.db'
+# Database path (use /tmp on Render to avoid permission issues)
+db_path = '/tmp/ira.db' if os.getenv('RENDER') else 'instance/ira.db'
+app.config['DATABASE'] = db_path
+
+# Ensure the directory exists
+os.makedirs(os.path.dirname(db_path), exist_ok=True)
+
+
+#app.config['DATABASE'] = 'instance/ira.db'
 
 # Initialize AI models at startup
 emotion_analyzer = None
