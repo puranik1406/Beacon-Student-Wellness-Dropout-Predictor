@@ -8,6 +8,9 @@ AI-powered analysis of academics, attendance, fee payments, and mental health pa
 ![Bootstrap](https://img.shields.io/badge/Bootstrap-5.3.2-purple.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
+
+Deployed site link : https://ira-studentwellness.onrender.com/
+
 ## 👥 Founders
 
 **IRA (Intuitive Reflection and Alert)** was created by a passionate team of students dedicated to
