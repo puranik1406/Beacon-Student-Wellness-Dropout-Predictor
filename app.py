@@ -973,14 +973,29 @@ def chat():
         }), 500
 
 if __name__ == '__main__':
-    # Check if database exists
-    if not os.path.exists('instance/ira.db'):
-        print("⚠️  Database not found. Please run 'python create_database.py' first.")
+    # Use /tmp on Render for database if available
+    db_path = '/tmp/ira.db' if os.getenv('RENDER') else 'instance/ira.db'
+    app.config['DATABASE'] = db_path
+
+    # Ensure the directory exists
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
+
+    # Create the database if missing
+    if not os.path.exists(db_path):
+        print(f"⚙️ Creating new database at {db_path}")
+        from create_database import init_db  # assumes your create_database.py defines init_db()
+        init_db(db_path)
+        print("✅ Database initialized successfully.")
     else:
-        if initialize_ai_models():
-            print("🚀 Starting IRA - Intuitive Reflection and Alert")
-            print("📍 Access the application at: http://127.0.0.1:5000")
-            app.run(debug=True)
-        else:
-            print("The application will continue with basic functionality.")
-            app.run(debug=True)
+        print(f"✅ Database found at {db_path}")
+
+    # Initialize AI models (if available)
+    if initialize_ai_models():
+        print("🚀 Starting IRA - Intuitive Reflection and Alert")
+    else:
+        print("⚠️ Continuing with basic functionality (AI models not initialized)")
+
+    # Run Flask (Render provides PORT)
+    port = int(os.environ.get('PORT', 10000))
+    app.run(host='0.0.0.0', port=port, debug=False)
+
