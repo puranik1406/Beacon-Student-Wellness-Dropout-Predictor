@@ -125,12 +125,30 @@ if not os.path.exists(app.config['DATABASE']):
     try:
         from create_database import create_database
         create_database(app.config['DATABASE'])
+        print("✅ Database created successfully with sample data!")
     except Exception as e:
         print(f"Warning: Could not run full database creation: {e}")
         print("Initializing with basic schema only...")
         init_db()
 else:
     print(f"✅ Database found at {app.config['DATABASE']}")
+    # Verify tables exist, if not recreate
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='students'")
+        if not cursor.fetchone():
+            print("⚠️ Tables missing, recreating database...")
+            conn.close()
+            os.remove(app.config['DATABASE'])
+            from create_database import create_database
+            create_database(app.config['DATABASE'])
+            print("✅ Database recreated with sample data!")
+        else:
+            print("✅ All tables verified!")
+        conn.close()
+    except Exception as e:
+        print(f"Warning: Could not verify tables: {e}")
 
 # Initialize AI models at startup
 emotion_analyzer = None
@@ -1133,6 +1151,7 @@ if __name__ == '__main__':
         try:
             from create_database import create_database
             create_database(db_path)
+            print("✅ Database created successfully with sample data!")
         except Exception as e:
             print(f"Warning: Could not run full database creation: {e}")
             print("Initializing with basic schema only...")
@@ -1140,7 +1159,7 @@ if __name__ == '__main__':
         else:
             print("Database initialized successfully.")
     else:
-        print(f"Database found at {db_path}")
+        print(f"✅ Database found at {db_path}")
 
     # Initialize AI models in background (non-blocking)
     initialize_ai_models_background()
