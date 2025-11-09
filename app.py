@@ -136,6 +136,7 @@ else:
 emotion_analyzer = None
 dropout_predictor = None
 ai_models_loading = True  # Flag to track loading status
+ai_models_enabled = not os.getenv('DISABLE_AI_MODELS', '').lower() == 'true'  # Can disable via env var
 
 # Configure Gemini API
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
@@ -149,24 +150,43 @@ def initialize_ai_models():
     """Initialize AI models at application startup"""
     global emotion_analyzer, dropout_predictor, ai_models_loading
     
+    if not ai_models_enabled:
+        print("⚠️ AI models disabled via environment variable")
+        ai_models_loading = False
+        return False
+    
     try:
         print("Initializing AI models in background...")
         
         # Initialize emotion analyzer
-        from ai_models.emotion_model import EmotionAnalyzer
-        emotion_analyzer = EmotionAnalyzer()
-        print("✅ Emotion analyzer loaded successfully")
+        try:
+            from ai_models.emotion_model import EmotionAnalyzer
+            emotion_analyzer = EmotionAnalyzer()
+            print("✅ Emotion analyzer loaded successfully")
+        except Exception as e:
+            print(f"⚠️ Could not load emotion analyzer: {e}")
+            print("App will continue without emotion analysis")
         
         # Initialize dropout risk predictor
-        from ai_models.tabular_model import DropoutRiskPredictor
-        dropout_predictor = DropoutRiskPredictor()
-        print("Dropout risk predictor loaded successfully")
+        try:
+            from ai_models.tabular_model import DropoutRiskPredictor
+            dropout_predictor = DropoutRiskPredictor()
+            print("✅ Dropout risk predictor loaded successfully")
+        except Exception as e:
+            print(f"⚠️ Could not load dropout predictor: {e}")
+            print("App will continue without ML-based dropout prediction")
         
         ai_models_loading = False
-        print("All AI models initialized successfully!")
-        return True
+        
+        if emotion_analyzer or dropout_predictor:
+            print("AI models initialized successfully!")
+            return True
+        else:
+            print("⚠️ No AI models loaded, but app will function normally")
+            return False
+            
     except Exception as e:
-        print(f"Error initializing AI models: {e}")
+        print(f"⚠️ Error initializing AI models: {e}")
         print("The application will continue with basic functionality.")
         ai_models_loading = False
         return False

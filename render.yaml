@@ -14,6 +14,8 @@ services:
         generateValue: true
       - key: RENDER
         value: true
+      - key: DISABLE_AI_MODELS
+        value: true
       - key: GEMINI_API_KEY
         sync: false
     autoDeploy: true
