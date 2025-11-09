@@ -17,9 +17,134 @@ db_path = '/tmp/ira.db' if os.getenv('RENDER') else 'instance/ira.db'
 app.config['DATABASE'] = db_path
 
 # ✅ Ensure directory exists
-os.makedirs(os.path.dirname(db_path), exist_ok=True)
+db_dir = os.path.dirname(db_path)
+if db_dir:
+    os.makedirs(db_dir, exist_ok=True)
 
-# ✅ Auto-create the DB if missing
+# Initialize AI models at startup
+emotion_analyzer = None
+dropout_predictor = None
+ai_models_loading = True  # Flag to track loading status
+ai_models_enabled = not os.getenv('DISABLE_AI_MODELS', '').lower() == 'true'  # Can disable via env var
+
+# Configure Gemini API
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+if GEMINI_API_KEY and GEMINI_API_KEY != 'your_gemini_api_key_here':
+    genai.configure(api_key=GEMINI_API_KEY)
+    print("✅ Gemini API configured successfully")
+else:
+    print("⚠️ Gemini API key not found. Chatbot will use fallback responses.")
+
+def initialize_ai_models():
+    """Initialize AI models at application startup"""
+    global emotion_analyzer, dropout_predictor, ai_models_loading
+    
+    if not ai_models_enabled:
+        print("⚠️ AI models disabled via environment variable")
+        ai_models_loading = False
+        return False
+    
+    try:
+        print("Initializing AI models in background...")
+        
+        # Initialize emotion analyzer
+        try:
+            from ai_models.emotion_model import EmotionAnalyzer
+            emotion_analyzer = EmotionAnalyzer()
+            print("✅ Emotion analyzer loaded successfully")
+        except Exception as e:
+            print(f"⚠️ Could not load emotion analyzer: {e}")
+            print("App will continue without emotion analysis")
+        
+        # Initialize dropout risk predictor
+        try:
+            from ai_models.tabular_model import DropoutRiskPredictor
+            dropout_predictor = DropoutRiskPredictor()
+            print("✅ Dropout risk predictor loaded successfully")
+        except Exception as e:
+            print(f"⚠️ Could not load dropout predictor: {e}")
+            print("App will continue without ML-based dropout prediction")
+        
+        ai_models_loading = False
+        
+        if emotion_analyzer or dropout_predictor:
+            print("AI models initialized successfully!")
+            return True
+        else:
+            print("⚠️ No AI models loaded, but app will function normally")
+            return False
+            
+    except Exception as e:
+        print(f"⚠️ Error initializing AI models: {e}")
+        print("The application will continue with basic functionality.")
+        ai_models_loading = False
+        return False
+
+def initialize_ai_models_background():
+    """Start AI model initialization in background thread"""
+    thread = threading.Thread(target=initialize_ai_models, daemon=True)
+    thread.start()
+    print("AI models loading in background (app starting immediately)...")
+
+def get_db():
+    """Connect to the database"""
+    conn = sqlite3.connect(app.config['DATABASE'])
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def ensure_database_exists():
+    """Ensure database exists with all tables and sample data"""
+    # On Render, ALWAYS recreate the database to ensure tables exist
+    if os.getenv('RENDER'):
+        print("🔄 Render environment detected - ensuring database is properly initialized...")
+        if os.path.exists(app.config['DATABASE']):
+            # Verify tables exist
+            try:
+                conn = get_db()
+                cursor = conn.cursor()
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='students'")
+                table_exists = cursor.fetchone()
+                conn.close()
+                
+                if not table_exists:
+                    print("⚠️ Database file exists but tables are missing! Recreating...")
+                    os.remove(app.config['DATABASE'])
+                else:
+                    print("✅ Database verified - all tables exist!")
+                    return
+            except Exception as e:
+                print(f"⚠️ Error verifying database: {e}")
+                if os.path.exists(app.config['DATABASE']):
+                    os.remove(app.config['DATABASE'])
+        
+        # Create fresh database
+        print(f"Creating new database at {app.config['DATABASE']}")
+        try:
+            from create_database import create_database
+            create_database(app.config['DATABASE'])
+            print("✅ Database created successfully with sample data!")
+        except Exception as e:
+            print(f"❌ Error creating database: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
+    else:
+        # Local environment - only create if missing
+        if not os.path.exists(app.config['DATABASE']):
+            print(f"Creating new database at {app.config['DATABASE']}")
+            try:
+                from create_database import create_database
+                create_database(app.config['DATABASE'])
+                print("✅ Database created successfully with sample data!")
+            except Exception as e:
+                print(f"Warning: Could not run full database creation: {e}")
+                raise
+        else:
+            print(f"✅ Database found at {app.config['DATABASE']}")
+
+# Initialize database NOW
+ensure_database_exists()
+
 def init_db():
     """Initialize database with basic schema"""
     conn = sqlite3.connect(app.config['DATABASE'])
@@ -118,108 +243,6 @@ def init_db():
     conn.commit()
     conn.close()
     print(f"✅ Database initialized at {app.config['DATABASE']}")
-
-# Call this once when the app starts
-if not os.path.exists(app.config['DATABASE']):
-    print(f"Creating new database at {app.config['DATABASE']}")
-    try:
-        from create_database import create_database
-        create_database(app.config['DATABASE'])
-        print("✅ Database created successfully with sample data!")
-    except Exception as e:
-        print(f"Warning: Could not run full database creation: {e}")
-        print("Initializing with basic schema only...")
-        init_db()
-else:
-    print(f"✅ Database found at {app.config['DATABASE']}")
-    # Verify tables exist, if not recreate
-    try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='students'")
-        if not cursor.fetchone():
-            print("⚠️ Tables missing, recreating database...")
-            conn.close()
-            os.remove(app.config['DATABASE'])
-            from create_database import create_database
-            create_database(app.config['DATABASE'])
-            print("✅ Database recreated with sample data!")
-        else:
-            print("✅ All tables verified!")
-        conn.close()
-    except Exception as e:
-        print(f"Warning: Could not verify tables: {e}")
-
-# Initialize AI models at startup
-emotion_analyzer = None
-dropout_predictor = None
-ai_models_loading = True  # Flag to track loading status
-ai_models_enabled = not os.getenv('DISABLE_AI_MODELS', '').lower() == 'true'  # Can disable via env var
-
-# Configure Gemini API
-GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
-if GEMINI_API_KEY and GEMINI_API_KEY != 'your_gemini_api_key_here':
-    genai.configure(api_key=GEMINI_API_KEY)
-    print("✅ Gemini API configured successfully")
-else:
-    print("⚠️ Gemini API key not found. Chatbot will use fallback responses.")
-
-def initialize_ai_models():
-    """Initialize AI models at application startup"""
-    global emotion_analyzer, dropout_predictor, ai_models_loading
-    
-    if not ai_models_enabled:
-        print("⚠️ AI models disabled via environment variable")
-        ai_models_loading = False
-        return False
-    
-    try:
-        print("Initializing AI models in background...")
-        
-        # Initialize emotion analyzer
-        try:
-            from ai_models.emotion_model import EmotionAnalyzer
-            emotion_analyzer = EmotionAnalyzer()
-            print("✅ Emotion analyzer loaded successfully")
-        except Exception as e:
-            print(f"⚠️ Could not load emotion analyzer: {e}")
-            print("App will continue without emotion analysis")
-        
-        # Initialize dropout risk predictor
-        try:
-            from ai_models.tabular_model import DropoutRiskPredictor
-            dropout_predictor = DropoutRiskPredictor()
-            print("✅ Dropout risk predictor loaded successfully")
-        except Exception as e:
-            print(f"⚠️ Could not load dropout predictor: {e}")
-            print("App will continue without ML-based dropout prediction")
-        
-        ai_models_loading = False
-        
-        if emotion_analyzer or dropout_predictor:
-            print("AI models initialized successfully!")
-            return True
-        else:
-            print("⚠️ No AI models loaded, but app will function normally")
-            return False
-            
-    except Exception as e:
-        print(f"⚠️ Error initializing AI models: {e}")
-        print("The application will continue with basic functionality.")
-        ai_models_loading = False
-        return False
-
-def initialize_ai_models_background():
-    """Start AI model initialization in background thread"""
-    thread = threading.Thread(target=initialize_ai_models, daemon=True)
-    thread.start()
-    print("AI models loading in background (app starting immediately)...")
-
-def get_db():
-    """Connect to the database"""
-    conn = sqlite3.connect(app.config['DATABASE'])
-    conn.row_factory = sqlite3.Row
-    return conn
 
 def calculate_risk_score(student_id):
     """
