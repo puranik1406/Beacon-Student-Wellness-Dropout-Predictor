@@ -12,11 +12,11 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'ira_secret_key')
 
-# ✅ Use /tmp on Render to avoid permission issues
+# Use /tmp on Render to avoid permission issues
 db_path = '/tmp/ira.db' if os.getenv('RENDER') else 'instance/ira.db'
 app.config['DATABASE'] = db_path
 
-# ✅ Ensure directory exists
+# Ensure directory exists
 db_dir = os.path.dirname(db_path)
 if db_dir:
     os.makedirs(db_dir, exist_ok=True)
@@ -31,16 +31,16 @@ ai_models_enabled = not os.getenv('DISABLE_AI_MODELS', '').lower() == 'true'  # 
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 if GEMINI_API_KEY and GEMINI_API_KEY != 'your_gemini_api_key_here':
     genai.configure(api_key=GEMINI_API_KEY)
-    print("✅ Gemini API configured successfully")
+    print("Gemini API configured successfully")
 else:
-    print("⚠️ Gemini API key not found. Chatbot will use fallback responses.")
+    print("Gemini API key not found. Chatbot will use fallback responses.")
 
 def initialize_ai_models():
     """Initialize AI models at application startup"""
     global emotion_analyzer, dropout_predictor, ai_models_loading
     
     if not ai_models_enabled:
-        print("⚠️ AI models disabled via environment variable")
+        print("AI models disabled via environment variable")
         ai_models_loading = False
         return False
     
@@ -51,18 +51,18 @@ def initialize_ai_models():
         try:
             from ai_models.emotion_model import EmotionAnalyzer
             emotion_analyzer = EmotionAnalyzer()
-            print("✅ Emotion analyzer loaded successfully")
+            print("Emotion analyzer loaded successfully")
         except Exception as e:
-            print(f"⚠️ Could not load emotion analyzer: {e}")
+            print(f"Could not load emotion analyzer: {e}")
             print("App will continue without emotion analysis")
         
         # Initialize dropout risk predictor
         try:
             from ai_models.tabular_model import DropoutRiskPredictor
             dropout_predictor = DropoutRiskPredictor()
-            print("✅ Dropout risk predictor loaded successfully")
+            print("Dropout risk predictor loaded successfully")
         except Exception as e:
-            print(f"⚠️ Could not load dropout predictor: {e}")
+            print(f"Could not load dropout predictor: {e}")
             print("App will continue without ML-based dropout prediction")
         
         ai_models_loading = False
@@ -71,11 +71,11 @@ def initialize_ai_models():
             print("AI models initialized successfully!")
             return True
         else:
-            print("⚠️ No AI models loaded, but app will function normally")
+            print("No AI models loaded, but app will function normally")
             return False
             
     except Exception as e:
-        print(f"⚠️ Error initializing AI models: {e}")
+        print(f"Error initializing AI models: {e}")
         print("The application will continue with basic functionality.")
         ai_models_loading = False
         return False
@@ -88,6 +88,12 @@ def initialize_ai_models_background():
 
 def get_db():
     """Connect to the database"""
+    # Ensure database exists on first access
+    global _db_initialized
+    if not hasattr(get_db, '_initialized'):
+        get_db._initialized = True
+        ensure_database_exists()
+    
     conn = sqlite3.connect(app.config['DATABASE'])
     conn.row_factory = sqlite3.Row
     return conn
@@ -177,22 +183,6 @@ def ensure_database_exists():
     print("=" * 80)
     print("DATABASE INITIALIZATION COMPLETED")
     print("=" * 80)
-
-# Initialize database NOW
-print("\n" + "=" * 80)
-print("ATTEMPTING DATABASE INITIALIZATION")
-print("=" * 80)
-try:
-    ensure_database_exists()
-except Exception as e:
-    print(f"\n" + "=" * 80)
-    print("FATAL ERROR DURING DATABASE INITIALIZATION")
-    print("=" * 80)
-    print(f"Error: {e}")
-    import traceback
-    traceback.print_exc()
-    print(f"=" * 80 + "\n")
-    # Don't raise - let app start and show error on first request
 
 def init_db():
     """Initialize database with basic schema"""
@@ -291,7 +281,7 @@ def init_db():
     
     conn.commit()
     conn.close()
-    print(f"✅ Database initialized at {app.config['DATABASE']}")
+    print(f"Database initialized at {app.config['DATABASE']}")
 
 def calculate_risk_score(student_id):
     """
