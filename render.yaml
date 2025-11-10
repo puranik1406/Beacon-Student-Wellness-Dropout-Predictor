@@ -16,6 +16,9 @@ services:
         value: true
       - key: DISABLE_AI_MODELS
         value: true
+      # Add your Gemini API key in Render Dashboard -> Environment
+      # Go to: https://makersuite.google.com/app/apikey to get a free API key
+      # Then add it manually in your Render service's Environment tab
       - key: GEMINI_API_KEY
-        sync: false
+        value: ""  # Set this in Render Dashboard
     autoDeploy: true

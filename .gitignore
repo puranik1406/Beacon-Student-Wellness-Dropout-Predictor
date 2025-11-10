@@ -71,3 +71,6 @@ htmlcov/
 *.tmp
 *.bak
 *.cache
+
+# Large project files
+IRA.pdf

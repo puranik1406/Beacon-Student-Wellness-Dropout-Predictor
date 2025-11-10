@@ -29,11 +29,32 @@ ai_models_enabled = not os.getenv('DISABLE_AI_MODELS', '').lower() == 'true'  # 
 
 # Configure Gemini API
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
-if GEMINI_API_KEY and GEMINI_API_KEY != 'your_gemini_api_key_here':
-    genai.configure(api_key=GEMINI_API_KEY)
-    print("Gemini API configured successfully")
+if GEMINI_API_KEY and GEMINI_API_KEY != 'your_gemini_api_key_here' and GEMINI_API_KEY.strip():
+    try:
+        genai.configure(api_key=GEMINI_API_KEY)
+        print("Gemini API configured successfully")
+    except Exception as e:
+        print(f"Gemini API configuration failed: {e}")
+        print("Chatbot will use fallback responses.")
+        GEMINI_API_KEY = None
 else:
-    print("Gemini API key not found. Chatbot will use fallback responses.")
+    print("Gemini API key not configured")
+    print("=" * 80)
+    print("To enable AI Chatbot:")
+    print("1. Get a free API key from: https://makersuite.google.com/app/apikey")
+    if os.getenv('RENDER'):
+        print("2. Add it to Render Dashboard:")
+        print("   - Go to: https://dashboard.render.com")
+        print("   - Select your service")
+        print("   - Click 'Environment' tab")
+        print("   - Set GEMINI_API_KEY variable")
+        print("   - Save and redeploy")
+    else:
+        print("2. Add it to your .env file:")
+        print("   GEMINI_API_KEY=your_actual_api_key_here")
+    print("=" * 80)
+    print("Chatbot will use fallback responses until API key is configured.")
+    GEMINI_API_KEY = None
 
 def initialize_ai_models():
     """Initialize AI models at application startup"""
